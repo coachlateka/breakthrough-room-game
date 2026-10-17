@@ -1,0 +1,17 @@
+BREAKTHROUGH ROOM™ — LIVE EMAIL STAGING (NOT CONNECTED TO KAJABI)
+
+This is a developer staging kit, NOT ready for public promotion.
+
+1. Upload this extracted folder to Netlify using a deployment method that installs npm dependencies and bundles Netlify Functions (prefer Git-based deployment, not Netlify Drop).
+2. In Netlify Site configuration > Environment variables, set:
+   ENABLE_RESULTS=true
+   RESEND_API_KEY=(your private key from your email provider; never paste into chat)
+   FROM_EMAIL=(verified sender, e.g. Blueprint <blueprint@yourverifieddomain>)
+   COACH_EMAIL=thrive@kingdomfitlife.com
+   GAME_ORIGIN=https://your-site.netlify.app
+3. Verify the sender domain with the email provider. Test with your own test lead first. Do not activate publicly until tested.
+4. The same-origin function saves minimum contact/results data to Netlify Blobs, delivers the summary to the participant and a notification to the coach, and returns a verified acknowledgement before revealing the Blueprint.
+5. This package DOES NOT sync contacts to Kajabi. Your previously tested Kajabi Form ID 2149757217 still works on its own; a supported API/automation connector must be configured to write synchronized contacts and consent safely. Avoid duplicate/substitute Kajabi form claims.
+6. Before launch: implement spam protection, rate limiting, retention/deletion, accessibility checks, error retry/idempotency, and assess server-side validation of game completion. The game can be manipulated by browser users, so a verified delivery here is not proof a player honestly solved every puzzle.
+7. Email sending may incur charges at provider thresholds. Review Netlify function/Blobs and email-service pricing before enabling.
+8. No source code should ever contain the private Resend key or Kajabi credentials.

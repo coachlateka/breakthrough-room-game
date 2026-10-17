@@ -1,0 +1,18 @@
+THE BREAKTHROUGH ROOM™ — KAJABI INTEGRATION KIT
+
+TEST WHAT IS WORKING:
+1. Extract ZIP and open index.html in Chrome. This opens the approved Grand Foyer.
+2. Play through all five rooms. The email gate is still DEMO ONLY; enter demo@example.com.
+3. The Blueprint currently displays as a preview. No real email or results syncing occurs.
+
+HOST GAME ON YOUR KFLA SITE:
+1. Deploy the files as a folder to an HTTPS static site host. Keep index.html and the five room HTML files in the same directory.
+2. In Kajabi, create a dedicated landing page at /breakthroughroom and add a Custom Code section.
+3. Paste the contents of KAJABI_EMBED_SNIPPET.html and replace YOUR_HOSTED_GAME_URL with your HTTPS hosting URL.
+4. Test all room-to-room transitions and mobile scrolling on the published Kajabi page.
+
+CONNECT LEADS + EMAIL RESULTS (NOT AUTOMATICALLY INCLUDED):
+Refer to RESULTS_SERVICE_CONTRACT.md. The tested Kajabi form ID is 2149757217.
+A server-side verified form/results bridge is required before real addresses are captured or personal scores emailed.
+
+This is a staging package, not a launch-ready referral or email automation service.
