@@ -200,10 +200,13 @@ export default async function handler(request) {
       process.env.COACH_EMAIL || 'thrive@kingdomfitlife.com',
       250
     );
-
+const referrerDetails = pendingReferral && referrer
+  ? `<p>Referred by: ${enc(referrer.first || 'Unknown')} (${enc(referrer.email || 'Email unavailable')})</p>`
+  : '';
     const referralNote = pendingReferral
       ? `<p><b>Referral:</b> Pending manual review</p>
          <p>Referring record: ${enc(pendingReferral)}</p>
+${referrerDetails}
          <p>No discount has been approved or issued.</p>`
       : '<p><b>Referral:</b> No eligible referral identified.</p>';
 
