@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID, createHash, randomBytes } from 'node:crypto';
 
 const allowedOrigin = process.env.GAME_ORIGIN || '';
 const buckets = ['Identity','Healing','Ownership','Alignment','Activation'];
@@ -25,6 +25,7 @@ async function send(to,subject,html){
   if(!r.ok)throw new Error('Mail provider rejected request: '+r.status);
 }
 export default async function handler(request){
+ if(request.method==='GET')return await confirmReferral(request);
  if(request.method!=='POST')return new Response('Method not allowed',{status:405});
  if(process.env.ENABLE_RESULTS!=='true'||!process.env.RESEND_API_KEY||!process.env.FROM_EMAIL) return Response.json({error:'Results service is not enabled yet.'},{status:503});
  const origin=request.headers.get('origin')||'';
@@ -38,11 +39,40 @@ export default async function handler(request){
   const result=report(data.answers);
   if(!result.complete)return Response.json({error:'Please complete all room reflections before unlocking your results.'},{status:422});
   const id=randomUUID(), store=getStore('breakthrough-leads');
+   const incomingRef=safe(data.referralId,50);
+   const referralId=/^[0-9a-f-]{36}$/i.test(incomingRef)?incomingRef:'';
+   // A referral is only pending until the new participant proves access to their email.
+   let pendingReferral='';
+   if(referralId){
+     const source=await store.get(referralId,{type:'json'});
+     if(source?.emailHash && source.emailHash!==createHash('sha256').update(email).digest('hex'))pendingReferral=referralId;
+   }
+   const verifyToken=pendingReferral?randomBytes(24).toString('hex'):'';
+   const tokenHash=verifyToken?createHash('sha256').update(verifyToken).digest('hex'):'';
   const emailHash=createHash('sha256').update(email).digest('hex');
-  await store.setJSON(id,{id,createdAt:new Date().toISOString(),first,email,emailHash,marketingConsent:data.marketingConsent,consentLabel:'Yes, send me KFLA coaching insights and offers',result});
+  await store.setJSON(id,{id,createdAt:new Date().toISOString(),first,email,emailHash,marketingConsent:data.marketingConsent,consentLabel:'Yes, send me KFLA coaching insights and offers',result,pendingReferral,referralVerified:false,verifyTokenHash:tokenHash});
   await send(email,'Your personal Breakthrough Blueprint™',template(first,result));
   const owner=safe(process.env.COACH_EMAIL||'thrive@kingdomfitlife.com',250);
   await send(owner,'New Breakthrough Room™ assessment',`<p>New completed game: ${enc(first)} (${enc(email)})</p><p>Priority: ${enc(result.focus)}</p><p>Support: ${enc(result.support)}</p><p>Suggested pathway: ${enc(result.recommended)}</p><p>Marketing consent: ${data.marketingConsent?'Yes':'No'}</p><p>Record reference: ${id}. Keep detailed assessment answers private.</p>`);
   return Response.json({verified:true,submissionId:id,result});
  }catch(e){console.error('Breakthrough submission error',e.message);return Response.json({error:'Unable to complete delivery. Please try again later.'},{status:500});}
+}
+
+async function confirmReferral(request){
+ try{
+ const v=new URL(request.url).searchParams.get('verify')||'';
+ const match=/^([0-9a-f-]{36})\.([0-9a-f]{48})$/i.exec(v);
+ if(!match)return new Response('Invalid verification link',{status:400});
+ const store=getStore('breakthrough-leads');const record=await store.get(match[1],{type:'json'});
+ const digest=createHash('sha256').update(match[2]).digest('hex');
+ if(!record||record.verifyTokenHash!==digest||!record.pendingReferral||new Date(record.createdAt).getTime()<Date.now()-7*86400000)return new Response('Verification link is invalid or expired.',{status:400});
+ if(!record.referralVerified){
+  const referrer=await store.get(record.pendingReferral,{type:'json'});
+  if(!referrer||referrer.emailHash===record.emailHash)return new Response('Referral not eligible',{status:400});
+  // Mark referring lead as eligible for manual verification and coupon issue.
+  if(!referrer.referralQualifiedBy){referrer.referralQualifiedBy=record.id;referrer.referralQualifiedAt=new Date().toISOString();await store.setJSON(referrer.id,referrer)}
+  record.referralVerified=true;record.verifyTokenHash='';await store.setJSON(record.id,record);
+ }
+ return new Response('<!doctype html><html><meta charset="utf-8"><title>Email verified</title><body style="font:18px system-ui;padding:40px;background:#f9f1e1;color:#134533"><h1>Thank you for confirming!</h1><p>Your email has been verified. KFLA will review the referral reward eligibility.</p></body></html>',{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+ }catch(e){console.error('Referral confirmation error:',e.message);return new Response('Unable to verify email.',{status:500})}
 }
