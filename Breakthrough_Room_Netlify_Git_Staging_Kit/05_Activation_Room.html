@@ -13,21 +13,15 @@
 .progress-keys{display:flex;justify-content:center;flex-wrap:wrap;gap:8px}.progress-keys span{border:1px solid #bba47170;border-radius:24px;padding:6px 9px;font-size:12px;color:#f5e5c2;background:#18382f}.result-bars{display:grid;gap:9px}.result-row{display:grid;grid-template-columns:110px 1fr 28px;align-items:center;gap:10px;font-size:13px}.bar-track{height:10px;background:#d6c5a8;border-radius:15px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,#987039,#e9c782);border-radius:15px}.note{font-size:12px;line-height:1.5;opacity:.85}
 </style>
 <script>
-/* Portable progress state: transfers assessments between local HTML pages without relying on file:// storage. */
+/* Private game progress stays in same-origin sessionStorage, never in a shareable URL. */
 (function(){
-  const KEY='brdata';
-  let initial={};
-  try {const qs=new URLSearchParams(location.search);const raw=qs.get(KEY);if(raw){const decoded=decodeURIComponent(escape(atob(raw.replace(/-/g,'+').replace(/_/g,'/'))));initial=JSON.parse(decoded)}}catch(err){initial={}}
-  const valid={};
-  for(const k of ['breakthrough_living','breakthrough_baggage','breakthrough_pattern','breakthrough_turning','breakthrough_activation']){
-    if(initial[k] && typeof initial[k]==='object')valid[k]=initial[k];
-  }
-  window.BRProgress={
-    records:valid,
-    save(k,value){this.records[k]=value;try{sessionStorage.setItem(k,JSON.stringify(value))}catch(e){}},
-    read(k){if(this.records[k])return this.records[k];try{const v=sessionStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
-    go(target){let name=target.split('?')[0];const json=JSON.stringify(this.records);const encoded=btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');window.location.href=name+'?'+KEY+'='+encoded}
-  };
+ const keys=['breakthrough_living','breakthrough_baggage','breakthrough_pattern','breakthrough_turning','breakthrough_activation'];
+ const records={};for(const k of keys){try{const v=sessionStorage.getItem(k);if(v)records[k]=JSON.parse(v)}catch(e){}}
+ window.BRProgress={records,
+  save(k,v){if(!keys.includes(k))return;this.records[k]=v;try{sessionStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  read(k){if(this.records[k])return this.records[k];try{const v=sessionStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
+  go(target){window.location.assign(target.split('?')[0])}
+ };
 })();
 </script>
 </head><body><main class="wrap"><div class="mast"><div><div class="subtitle">KINGDOM F.I.T. LIFE ACADEMY • THE BREAKTHROUGH ROOM™</div><div class="brand">The Activation Room™</div><div class="subtitle">Room 5 of 5 • The Key of Activation</div></div><div class="pill" id="meter">🔒 Final Key • Not yet found</div></div>
@@ -103,7 +97,7 @@ function showEmailGate(){
   <label for="lead-first"><b>First name</b></label><input id="lead-first" type="text" autocomplete="off" placeholder="Your first name" style="width:100%;box-sizing:border-box;padding:12px;margin:8px 0 14px;border:1px solid #bda77e;border-radius:9px" maxlength="80">
   <label for="lead-email"><b>Email address</b></label><input id="lead-email" type="email" autocomplete="off" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:12px;margin:8px 0 12px;border:1px solid #bda77e;border-radius:9px" maxlength="200">
   <label style="display:flex;gap:9px;align-items:start;margin:14px 0"><input type="checkbox" id="lead-optin" style="margin-top:4px"><span>Optional: I would like to receive KFLA coaching tips, resources, and invitations.</span></label>
-  <p style="font-size:12px"><p style="font-size:12px">Your personalized Breakthrough Blueprint™ will be emailed to you after successful submission. Kingdom F.I.T. Life Academy™ will receive a completion notification. Marketing messages require your separate consent.</p>
+  <p style="font-size:12px">Your personalized Breakthrough Blueprint™ will be emailed to you after successful submission. Kingdom F.I.T. Life Academy™ will receive a completion notification. Marketing messages require your separate consent.</p>
   <button class="btn" type="button" data-preview-gate>Submit & Reveal My Blueprint →</button>
   <button class="btn ghost" data-close>Return to the room</button>
  `);
@@ -116,32 +110,33 @@ async function demoGate(){
  const button=document.querySelector('[data-preview-gate]'); if(button){button.disabled=true;button.textContent='Sending securely…'}
  try{
   const prior=getStored();
-  const payload={firstName:first.value.trim(),email:email.value.trim(),marketingConsent:!!opt?.checked,answers:{identity:prior.identity||{},healing:prior.healing||{},ownership:prior.ownership||{},alignment:{...(prior.alignment||{}),...((prior.alignment||{}).doorAnswers||{})},activation:{vision:s.vision,support:s.support,commitment:s.commitment}},website:''};
+  const payload={firstName:first.value.trim(),email:email.value.trim(),marketingConsent:!!opt?.checked,answers:{identity:prior.identity||{},healing:prior.healing||{},ownership:prior.ownership||{},alignment:{...(prior.alignment||{}),...((prior.alignment||{}).doorAnswers||{})},activation:{vision:s.vision,support:s.support,commitment:s.commitment}},website:'',referralId:sessionStorage.getItem('br_ref')||''};
   const res=await fetch(BREAKTHROUGH_RESULTS_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const body=await res.json();
   if(!res.ok || body.verified!==true) throw Error(body.error||'Submission was not verified.');
-  gateAccepted=true;showBlueprint();
+  gateAccepted=true;try{sessionStorage.setItem('br_own_ref',body.submissionId)}catch(e){}showBlueprint();
  }catch(e){popup('Results Delivery Not Ready',`<p>${escapeHtml(e.message)}</p><p>No results were unlocked. If your email was already delivered, contact thrive@kingdomfitlife.com.</p><button class="btn" data-gate-again>Return to form</button>`)}
 }
 
+function getInviteLink(){
+ const id=sessionStorage.getItem('br_own_ref');
+ return id&&/^[0-9a-f-]{36}$/i.test(id)?location.origin+'/?ref='+encodeURIComponent(id):'';
+}
 function showRewards(){
- const html=`<div style="text-align:center;font-size:32px;margin:6px 0">🔑 ✨ 🎁</div>
- <h3 style="text-align:center">DON'T KEEP THE BREAKTHROUGH TO YOURSELF!</h3>
- <p style="text-align:center">Share the game. Inspire a friend. Earn a <strong>one-time 15% discount on an eligible KFLA program</strong> when your first qualified new referral completes the experience. Additional referrals do not generate additional discounts.</p>
- <div class="notice"><b>Your personal results stay private.</b> The invitation shares the experience, not your answers or scores.</div>
- <h3>Invite someone into the house</h3><p>“I just unlocked all five keys in The Breakthrough Room™! 🔑<br>It's an interactive self-discovery escape experience!<br>Ready to explore the rooms and discover your next step?<br>[My Breakthrough Room referral link]”</p>
- <div class="notice"><b>Sharing disclosure (included automatically when copied):</b><br>I may receive a one-time discount if someone completes this experience using my referral link.</div>
- <button class="btn" data-copy-invite>Copy Invitation + Disclosure</button>
- <div class="notice"><b>Reward status: Not activated yet.</b><br>The local test game has no public link or verified referral tracking. Your unique sharing link and 15% reward activate after the hosted referral system is connected.</div>
- <p><b>How to earn:</b> 1. Receive your unique referral link. 2. Invite a new participant. 3. They complete the five-room experience and verify an email address. 4. Your reward is issued after referral validation.</p>
- <p style="font-size:12px">Only one reward total per referring participant after their first qualified referral; one use per code; no self-referrals or duplicate accounts; eligible programs and any expiration will be stated before launch. The copy button includes the incentive disclosure in the public post. Do not remove the disclosure when posting an incentivized referral link.</p>
- <button class="btn ghost" data-close>Return to My Blueprint</button>`;
- popup('🎁 Breakthrough Rewards™ | Share the Experience',html);
+ const link=getInviteLink();
+ const html=`<div style="text-align:center;font-size:32px">🔑 ✨ 🎁</div><h3>SHARE YOUR BREAKTHROUGH!</h3>
+ <p>Invite a friend to explore five rooms and five golden keys. A verified new participant may qualify you for <b>one 15% discount</b> on any KFLA course or coaching program, redeemable once with no expiration.</p>
+ <div class="notice"><b>Your personal responses stay private.</b> The referral link opens the foyer, not your Blueprint or answers.</div>
+ ${link?`<p><b>Your personal referral link:</b><br><input readonly aria-label="Your referral link" value="${link}" style="width:100%;padding:10px"></p><button class="btn" data-copy-invite>Copy My Invitation + Disclosure</button>`:'<p>Finish submitting your Blueprint to obtain a personal referral link.</p>'}
+ <p><b>Reward status:</b> Pending verification. Coupons are issued manually by KFLA only after referral validation; no code is awarded immediately.</p>
+ <p style="font-size:12px">One reward per person, no self-referrals, no stacking; opt-in to marketing is not required. When sharing, disclose that you may receive a discount if someone completes the experience using your link.</p><button class="btn ghost" data-close>Return to My Blueprint</button>`;
+ popup('🎁 Breakthrough Rewards™',html);
 }
 function copyInvite(){
- const msg='I just unlocked all five keys in The Breakthrough Room™! 🔑\nIt\'s an interactive self-discovery escape experience!\nReady to explore the rooms and discover your next step?\n[My Breakthrough Room referral link]\n\nI may receive a one-time discount if someone completes this experience using my referral link.';
- if(navigator.clipboard?.writeText){navigator.clipboard.writeText(msg).then(()=>popup('Invitation Copied','<p>Paste it into your social post when your real referral link is available.</p><button class="btn" data-rewards>Back to Rewards</button>')).catch(()=>popup('Copy Invitation',`<p>${msg}</p><button class="btn" data-rewards>Back to Rewards</button>`));}
- else popup('Copy Invitation',`<p>${msg}</p><button class="btn" data-rewards>Back to Rewards</button>`);
+ const link=getInviteLink();if(!link){showRewards();return}
+ const msg=`I unlocked all five keys in The Breakthrough Room™! 🔑\nDiscover your next step through this interactive journey: ${link}\n\nDisclosure: I may receive a one-time 15% discount if you complete this experience through my referral link.`;
+ if(navigator.clipboard?.writeText){navigator.clipboard.writeText(msg).then(()=>popup('Invitation Copied','<p>Your link and reward disclosure have been copied.</p><button class="btn" data-rewards>Back to Rewards</button>')).catch(()=>popup('Copy Invitation',`<textarea readonly style="width:100%;height:145px">${escapeHtml(msg)}</textarea>`));}
+ else popup('Copy Invitation',`<textarea readonly style="width:100%;height:145px">${escapeHtml(msg)}</textarea>`);
 }
 function act(a){if(a==='vision')vision();if(a==='desk')desk();if(a==='journal')sequence('journal');if(a==='books')sequence('books');if(a==='exit')exitRoom()}
 document.addEventListener('click',e=>{if(e.target.closest('[data-preview-gate]')){demoGate();return}if(e.target.closest('[data-gate-again]')){showEmailGate();return}let t=e.target.closest('[data-act]');if(t){act(t.dataset.act);return}let r=e.target.closest('[data-select]');if(r){let [key,val]=r.dataset.select.split(':');s[key]=Number(val);update();key==='vision'?vision():desk();tryKey();return}let w=e.target.closest('[data-word]');if(w){let [type,val]=w.dataset.word.split(':');let seq=type==='journal'?jseq:bseq;if(!seq.includes(val))seq.push(val);sequence(type);return}let cl=e.target.closest('[data-clear]');if(cl){cl.dataset.clear==='journal'?jseq=[]:bseq=[];sequence(cl.dataset.clear);return}let ck=e.target.closest('[data-check]');if(ck){let type=ck.dataset.check,seq=type==='journal'?jseq:bseq,correct=type==='journal'?journalCorrect:bookCorrect;if(seq.join('|')===correct.join('|')){s[type]=true;update();popup('✨ Golden Clue Discovered',`<div class="notice">${type==='journal'?'Action sequence':'Book sequence'} solved correctly!</div><button class="btn" data-close>Continue exploring</button>`);tryKey()}else{type==='journal'?jseq=[]:bseq=[];sequence(type);$('content').insertAdjacentHTML('beforeend','<div class="clue">Not quite. Use the clue and try again.</div>')}return}if(e.target.closest('[data-save-promise]')){s.commitment=($('promise')?.value||'').trim().slice(0,300);popup('Your Next Step Is Saved','<div class="notice">Your personal commitment is included in your final blueprint preview.</div><button class="btn" data-close>Continue exploring</button>');tryKey();return}if(e.target.closest('[data-rewards]')){showRewards();return}if(e.target.closest('[data-share-game]')){shareGame();return}if(e.target.closest('[data-copy-invite]')){copyInvite();return}if(e.target.closest('[data-copy]')){let t=`THE BREAKTHROUGH ROOM™ • MY BLUEPRINT\nFocus: ${['Healing and restoration','Healthy relationships','Clarity and direction','Purpose and growth'][s.vision]}\nSupport: ${['Reflection','Healing guidance','Coaching accountability','Leadership mentoring'][s.support]}\nNext step: ${s.commitment||'Choose one practical action this week.'}`;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>popup('Copied!','<p>Your Blueprint summary has been copied to your clipboard.</p><button class="btn" data-close>Close</button>')).catch(()=>popup('Copy Not Available',`<textarea style="width:100%;height:120px">${escapeHtml(t)}</textarea><button class="btn" data-close>Close</button>`));else popup('Your Blueprint Summary',`<textarea style="width:100%;height:120px">${escapeHtml(t)}</textarea><button class="btn" data-close>Close</button>`);return}if(e.target.closest('[data-close]'))closePopup()});

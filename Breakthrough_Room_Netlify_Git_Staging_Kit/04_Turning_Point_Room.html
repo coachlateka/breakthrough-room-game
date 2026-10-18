@@ -10,21 +10,15 @@
 .scene.passage-open .passage-lock{opacity:0;transform:scaleX(.15)}
 </style>
 <script>
-/* Portable progress state: transfers assessments between local HTML pages without relying on file:// storage. */
+/* Private game progress stays in same-origin sessionStorage, never in a shareable URL. */
 (function(){
-  const KEY='brdata';
-  let initial={};
-  try {const qs=new URLSearchParams(location.search);const raw=qs.get(KEY);if(raw){const decoded=decodeURIComponent(escape(atob(raw.replace(/-/g,'+').replace(/_/g,'/'))));initial=JSON.parse(decoded)}}catch(err){initial={}}
-  const valid={};
-  for(const k of ['breakthrough_living','breakthrough_baggage','breakthrough_pattern','breakthrough_turning','breakthrough_activation']){
-    if(initial[k] && typeof initial[k]==='object')valid[k]=initial[k];
-  }
-  window.BRProgress={
-    records:valid,
-    save(k,value){this.records[k]=value;try{sessionStorage.setItem(k,JSON.stringify(value))}catch(e){}},
-    read(k){if(this.records[k])return this.records[k];try{const v=sessionStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
-    go(target){let name=target.split('?')[0];const json=JSON.stringify(this.records);const encoded=btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');window.location.href=name+'?'+KEY+'='+encoded}
-  };
+ const keys=['breakthrough_living','breakthrough_baggage','breakthrough_pattern','breakthrough_turning','breakthrough_activation'];
+ const records={};for(const k of keys){try{const v=sessionStorage.getItem(k);if(v)records[k]=JSON.parse(v)}catch(e){}}
+ window.BRProgress={records,
+  save(k,v){if(!keys.includes(k))return;this.records[k]=v;try{sessionStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  read(k){if(this.records[k])return this.records[k];try{const v=sessionStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
+  go(target){window.location.assign(target.split('?')[0])}
+ };
 })();
 </script>
 </head><body><main class="wrap"><div class="mast"><div><div class="subtitle">KINGDOM F.I.T. LIFE ACADEMY • THE BREAKTHROUGH ROOM™</div><div class="brand">The Turning Point Room™</div><div class="subtitle">Room 4 of 5 • The Key of Alignment</div></div><div class="pill" id="meter">🔒 Alignment Key • Not yet found</div></div>
